@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="description" content="Idle Forge — strike the anvil, automate your smithy, unlock milestones and earn gold while offline. Free single-file HTML5 idle game.">
+<meta name="theme-color" content="#120d0a">
+<title>Idle Forge</title>
+<script>
+// 平台 SDK 按域名条件加载（独立运行时完全不加载，游戏行为不变）
+(function () {
+  var host = location.hostname || "";
+  try {
+    if (host.indexOf("crazygames") !== -1) {
+      var s1 = document.createElement("script");
+      s1.src = "https://sdk.crazygames.com/crazygames-sdk-v3.js";
+      s1.onload = function () {
+        if (window.CrazyGames && window.CrazyGames.SDK) {
+          window.CrazyGames.SDK.init().then(function () {
+            try { window.CrazyGames.SDK.game.loadingStart(); } catch (e) {}
+            window.addEventListener("load", function () { try { window.CrazyGames.SDK.game.loadingStop(); } catch (e) {} });
+          }).catch(function () {});
+        }
+      };
+      document.head.appendChild(s1);
+      window.__portal = "crazygames";
+    } else if (host.indexOf("gamedistribution") !== -1 || host.indexOf("html5.gamedistribution.com") !== -1 || host.indexOf("gd.games") !== -1) {
+      var s2 = document.createElement("script");
+      s2.src = "https://sdk.gamedistribution.com/v2/main.min.js";
+      document.head.appendChild(s2);
+      window.__portal = "gamedistribution";
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  html, body { min-height: 100%; background: #120d0a; color: #f0e6d8; font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif; }
+  body { -webkit-user-select: none; user-select: none; }
+  #wrap { max-width: 520px; margin: 0 auto; padding: 10px 12px 18px; display: flex; flex-direction: column; gap: 10px; }
+  #hud { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  #goldBox { flex: 1; }
+  .label { font-size: 10px; color: #8f7f6a; letter-spacing: 2px; font-weight: 700; }
+  #gold { font-size: 30px; font-weight: 900; color: #ffd76a; line-height: 1.1; }
+  #rate { font-size: 12px; color: #a89880; font-weight: 700; }
+  #muteBtn { background: #241a12; border: 1px solid #4a382c; color: #cbb69a; border-radius: 10px; padding: 9px 12px; font-weight: 800; font-size: 11px; letter-spacing: 1px; cursor: pointer; }
+  #muteBtn:active { transform: scale(.96); }
+  #stageWrap { position: relative; }
+  canvas { display: block; width: 100%; border-radius: 14px; touch-action: none; cursor: pointer; }
+  #banner { position: absolute; top: 12px; left: 50%; transform: translate(-50%, -80px); opacity: 0;
+    transition: transform .35s ease, opacity .35s ease; background: linear-gradient(135deg, #8a5a1e, #d29a3a);
+    color: #fff; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 14px; white-space: nowrap;
+    box-shadow: 0 6px 20px rgba(0,0,0,.55); pointer-events: none; z-index: 6; }
+  #banner.show { transform: translate(-50%, 0); opacity: 1; }
+  #overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(8,5,3,.8); z-index: 5; border-radius: 14px; }
+  #panel { background: #241a12; border: 1px solid #4a382c; border-radius: 16px; padding: 24px 30px; text-align: center; max-width: 300px; }
+  #panel h2 { font-size: 20px; color: #ffd76a; margin-bottom: 4px; }
+  #panel p { color: #a89880; font-size: 13px; }
+  #panel .big { font-size: 27px; font-weight: 900; color: #ffd76a; margin: 10px 0 2px; }
+  #collectBtn { margin-top: 14px; background: linear-gradient(135deg, #b06a20, #e09a35); border: none; color: #fff;
+    border-radius: 10px; padding: 11px 34px; font-size: 15px; font-weight: 800; cursor: pointer; }
+  #collectBtn:active { transform: scale(.97); }
+  #stats { display: flex; gap: 8px; }
+  .statCard { flex: 1; background: #1c1410; border: 1px solid #33261c; border-radius: 12px; padding: 8px 6px; text-align: center; }
+  .statCard .k { font-size: 9px; color: #8f7f6a; letter-spacing: 1px; font-weight: 700; }
+  .statCard .v { font-size: 15px; font-weight: 800; margin-top: 3px; color: #f0e6d8; }
+  #msBar { background: #1c1410; border: 1px solid #33261c; border-radius: 12px; padding: 8px 12px; }
+  #msHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  #msHead .k { font-size: 11px; color: #c9b795; font-weight: 700; }
+  #msPct { font-size: 11px; color: #8f7f6a; font-weight: 800; }
+  #tierProg { height: 7px; background: #2a201a; border-radius: 4px; overflow: hidden; }
+  #msFill { height: 100%; width: 0%; background: linear-gradient(90deg, #c9822a, #ffd76a); border-radius: 4px; }
+  #shop { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 400px) { #shop { grid-template-columns: 1fr; } }
+  .up { background: #1c1410; border: 1px solid #33261c; border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; }
+  .up .nm { font-weight: 800; font-size: 13px; display: flex; justify-content: space-between; align-items: baseline; }
+  .up .lvl { color: #d29a3a; font-size: 11px; font-weight: 800; white-space: nowrap; }
+  .up .fx { font-size: 11px; color: #9b8a74; min-height: 14px; }
+  .up button { background: linear-gradient(135deg, #b06a20, #e09a35); border: none; color: #fff; font-weight: 800;
+    border-radius: 9px; padding: 8px; font-size: 13px; cursor: pointer; }
+  .up button:disabled { background: #2a201a; color: #6a5a48; cursor: default; }
+  .up button:active:not(:disabled) { transform: scale(.97); }
+  #footer { text-align: center; color: #5f5244; font-size: 11px; padding-top: 2px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div id="goldBox">
+      <div class="label">GOLD</div>
+      <div id="gold">0</div>
+      <div id="rate">0/sec</div>
+    </div>
+    <button id="muteBtn">SOUND: ON</button>
+  </div>
+  <div id="stageWrap">
+    <canvas id="forge"></canvas>
+    <div id="banner"></div>
+    <div id="overlay"><div id="panel">
+      <h2>Welcome back!</h2>
+      <p id="ovAway">Away 0m</p>
+      <div class="big" id="ovGain">+0</div>
+      <p id="ovCap" style="display:none;font-size:11px">Boiler cap reached (2h)</p>
+      <button id="collectBtn">Collect</button>
+    </div></div>
+  </div>
+  <div id="stats">
+    <div class="statCard"><div class="k">PER CLICK</div><div class="v" id="perClick">+1</div></div>
+    <div class="statCard"><div class="k">CRIT CHANCE</div><div class="v" id="critV">5%</div></div>
+    <div class="statCard"><div class="k">TOTAL FORGED</div><div class="v" id="totalF">0</div></div>
+  </div>
+  <div id="msBar">
+    <div id="msHead"><div class="k" id="msName">Next: Silver Bow at 1.00K total</div><div id="msPct">0%</div></div>
+    <div id="tierProg"><div id="msFill"></div></div>
+  </div>
+  <div id="shop"></div>
+  <div id="footer">Idle Forge — a free idle clicker game</div>
+</div>
+<script>
+"use strict";
+// ---------- 画布 ----------
+var W = 480, H = 320;
+var canvas = document.getElementById("forge");
+var ctx = canvas.getContext("2d");
+var dpr = Math.min(window.devicePixelRatio || 1, 2);
+canvas.width = W * dpr; canvas.height = H * dpr;
+canvas.style.width = "100%"; canvas.style.maxWidth = W + "px";
+ctx.scale(dpr, dpr);
+
+// ---------- 经济数值 ----------
+var SAVE_KEY = "idle_forge_save";
+var SAVE_VER = 1;
+var OFFLINE_CAP = 7200;   // 离线收益上限：2 小时
+var OFFLINE_MIN = 60;     // 至少离开 60 秒才弹结算
+var CRIT_MULT = 5;
+var CRIT_MAX = 23;        // 5% + 23×2% = 51% → 概率封顶 50%
+var gold = 0, total = 0;  // total = 累计总产出（驱动里程碑）
+var lv = { auto: 0, click: 0, crit: 0, boiler: 0 };
+var curTier = 0;
+var muted = false;
+
+var UPG = {
+  auto:   { name: "Auto Smith",   base: 15,  growth: 1.15, max: Infinity,
+            fx: function (l) { return "+" + fmt(l) + " gold per second"; } },
+  click:  { name: "Hammer Grip",  base: 10,  growth: 1.5,  max: Infinity,
+            fx: function (l) { return "+" + fmt(1 + l) + " gold per click"; } },
+  crit:   { name: "Crit Strike",  base: 60,  growth: 1.8,  max: CRIT_MAX,
+            fx: function (l) { return Math.round(Math.min(0.5, 0.05 + 0.02 * l) * 100) + "% chance for x5 gold"; } },
+  boiler: { name: "Forge Boiler", base: 500, growth: 1,    max: 1,
+            fx: function (l) { return l ? "Active — forges up to 2h offline" : "Unlock: forge while away (2h cap)"; } }
+};
+var ORDER = ["auto", "click", "crit", "boiler"];
+
+var TIERS = [
+  { at: 0,    name: "Iron Sword" },
+  { at: 1e3,  name: "Silver Bow" },
+  { at: 1e4,  name: "Gold Crown" },
+  { at: 1e5,  name: "Star Diamond" },
+  { at: 1e6,  name: "Dragon Armor" }
+];
+
+function rate() { return lv.auto; }
+function clickValue() { return 1 + lv.click; }
+function critChance() { return Math.min(0.5, 0.05 + 0.02 * lv.crit); }
+function costOf(key) { var u = UPG[key]; return Math.ceil(u.base * Math.pow(u.growth, lv[key])); }
+function offlineGain(elapsed) { return rate() * Math.min(elapsed, OFFLINE_CAP); }
+
+// ---------- 数字格式化（1.23K / M / B ...） ----------
+function fmt(n) {
+  if (!isFinite(n)) return "∞";
+  if (n < 0) return "-" + fmt(-n);
+  if (n < 1000) return String(Math.floor(n));
+  var u = ["K", "M", "B", "T", "Qa", "Qi"], i = -1, v = n;
+  while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+  if (v >= 1000) return v.toExponential(2); // 超出单位表：科学计数法兜底
+  return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + u[i];
+}
+
+// ---------- 音效（WebAudio 合成；AudioContext 仅在用户手势后创建） ----------
+var actx = null;
+function ensureAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+  } catch (e) {}
+}
+function beep(freq, dur, type, gainv) {
+  try {
+    if (!actx || muted) return;
+    var o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(gainv || 0.1, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + dur);
+  } catch (e) {}
+}
+function clang(isCrit) { // 金属敲击：双振荡器 + 随机微移
+  var d = 1 + (Math.random() * 0.06 - 0.03);
+  beep(420 * d, 0.09, "square", 0.07);
+  beep(1250 * d, 0.06, "triangle", 0.05);
+  if (isCrit) beep(2100, 0.14, "sine", 0.06);
+}
+function fanfare() {
+  beep(523, 0.15, "triangle", 0.09);
+  setTimeout(function () { beep(659, 0.15, "triangle", 0.09); }, 130);
+  setTimeout(function () { beep(784, 0.28, "triangle", 0.1); }, 260);
+}
+
+// ---------- 特效 ----------
+var particles = [], floats = [];
+function spawnSparks(n, x, y, power) {
+  n = n || 14; power = power || 1;
+  for (var i = 0; i < n; i++) {
+    var a = -Math.PI / 2 + (Math.random() * 1.6 - 0.8);
+    var s = (60 + Math.random() * 160) * power;
+    particles.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+      life: 0.35 + Math.random() * 0.3, age: 0, size: 1.5 + Math.random() * 2.5,
+      color: Math.random() < 0.5 ? "#ffd76a" : "#ff9a3a", g: 420 });
+  }
+  if (particles.length > 240) particles.splice(0, particles.length - 240);
+}
+function spawnEmber() { // 炉口上飘的火星
+  particles.push({ x: 78 + Math.random() * 40, y: 236, vx: (Math.random() - 0.5) * 14,
+    vy: -28 - Math.random() * 30, life: 1.2 + Math.random() * 0.8, age: 0,
+    size: 1.5 + Math.random() * 1.5, color: "#ff8a3a", g: -14 });
+  if (particles.length > 240) particles.splice(0, particles.length - 240);
+}
+function addFloat(text, isCrit, x, y) {
+  floats.push({ x: x !== undefined ? x : ANVIL_X - 10 + (Math.random() * 44 - 22),
+    y: y !== undefined ? y : 192, text: text, crit: !!isCrit, life: 0.9, age: 0 });
+  if (floats.length > 40) floats.splice(0, floats.length - 40);
+}
+
+// ---------- 平台埋点（域名守卫，参考 game/index.html 的接法） ----------
+var gpActive = false, started = false;
+function gpStart() {
+  if (gpActive) return;
+  gpActive = true;
+  try { if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) window.CrazyGames.SDK.game.gameplayStart(); } catch (e) {}
+}
+function gpStop() {
+  if (!gpActive) return;
+  gpActive = false;
+  try { if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) window.CrazyGames.SDK.game.gameplayStop(); } catch (e) {}
+}
+
+// ---------- 核心行为 ----------
+var ANVIL_X = 280, ANVIL_TOP = 214;
+var SWING_T = 0.3;
+var clicks = 0, swingT = 0;
+
+function doForge() {
+  ensureAudio();
+  if (!started) { started = true; gpStart(); }
+  var gain = clickValue();
+  var isCrit = Math.random() < critChance();
+  if (isCrit) gain *= CRIT_MULT;
+  gold += gain; total += gain;
+  clicks++; swingT = SWING_T;
+  spawnSparks(isCrit ? 22 : 14, ANVIL_X - 10, ANVIL_TOP - 4, isCrit ? 1.3 : 1);
+  addFloat((isCrit ? "CRIT +" : "+") + fmt(gain), isCrit);
+  clang(isCrit);
+  checkMilestone();
+  return gain;
+}
+
+var emberAcc = 0, autoAcc = 0;
+function simTick(dt) {
+  var r = rate();
+  if (r > 0) {
+    var inc = r * dt;
+    gold += inc; total += inc;
+    autoAcc += dt;
+    if (autoAcc >= 0.5) { autoAcc = 0; spawnSparks(3, ANVIL_X - 10, ANVIL_TOP - 2, 0.45); }
+    checkMilestone();
+  }
+  emberAcc += dt;
+  if (emberAcc >= 0.28) { emberAcc = 0; spawnEmber(); }
+}
+
+function tierOf(t) { for (var i = TIERS.length - 1; i >= 0; i--) if (t >= TIERS[i].at) return i; return 0; }
+function checkMilestone() {
+  var nt = tierOf(total);
+  if (nt > curTier) {
+    curTier = nt;
+    showBanner("MILESTONE — " + TIERS[nt].name + " unlocked!");
+    fanfare();
+    try { if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) window.CrazyGames.SDK.game.happytime(); } catch (e) {}
+  }
+}
+var bannerTimer = null;
+function showBanner(text) {
+  var b = document.getElementById("banner");
+  b.textContent = text;
+  b.classList.add("show");
+  if (bannerTimer) clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(function () { b.classList.remove("show"); }, 3000);
+}
+
+function buy(key) {
+  var u = UPG[key];
+  if (lv[key] >= u.max) return false;
+  var c = costOf(key);
+  if (gold < c) return false;
+  gold -= c; lv[key]++;
+  beep(620, 0.09, "triangle", 0.09);
+  updateHud(); updateShop();
+  return true;
+}
+
+// ---------- 存档（带版本号校验，坏档直接丢弃） ----------
+function clampInt(v, lo, hi) {
+  v = Math.floor(+v || 0);
+  if (!isFinite(v)) v = lo;
+  return Math.max(lo, Math.min(hi, v));
+}
+function saveGame() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: SAVE_VER, g: gold, t: total, a: lv.auto, c: lv.click,
+      r: lv.crit, b: lv.boiler, m: muted ? 1 : 0, ts: Date.now()
+    }));
+  } catch (e) {}
+}
+function loadGame() { // 返回离线秒数；无档/坏档返回 null
+  try {
+    var raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    var d = JSON.parse(raw);
+    if (!d || typeof d !== "object" || d.v !== SAVE_VER) return null;
+    if (typeof d.g !== "number" || !isFinite(d.g) || typeof d.t !== "number" || !isFinite(d.t)) return null;
+    gold = Math.max(0, d.g);
+    total = Math.max(0, d.t);
+    lv.auto = clampInt(d.a, 0, 1e9);
+    lv.click = clampInt(d.c, 0, 1e9);
+    lv.crit = clampInt(d.r, 0, CRIT_MAX);
+    lv.boiler = d.b ? 1 : 0;
+    muted = !!d.m;
+    var ts = +d.ts;
+    if (!isFinite(ts)) ts = Date.now();
+    return Math.max(0, (Date.now() - ts) / 1000);
+  } catch (e) { return null; }
+}
+function showOfflinePanel(elapsed, gain) {
+  var h = Math.floor(elapsed / 3600), m = Math.floor((elapsed % 3600) / 60);
+  document.getElementById("ovAway").textContent = "Away " + (h > 0 ? h + "h " : "") + m + "m";
+  document.getElementById("ovGain").textContent = "+" + fmt(gain) + " gold";
+  document.getElementById("ovCap").style.display = elapsed > OFFLINE_CAP ? "block" : "none";
+  document.getElementById("overlay").style.display = "flex";
+}
+
+// ---------- DOM UI ----------
+function updateHud() {
+  document.getElementById("gold").textContent = fmt(gold);
+  document.getElementById("rate").textContent = fmt(rate()) + "/sec";
+  document.getElementById("perClick").textContent = "+" + fmt(clickValue());
+  document.getElementById("critV").textContent = Math.round(critChance() * 100) + "%";
+  document.getElementById("totalF").textContent = fmt(total);
+  var next = TIERS[curTier + 1];
+  if (next) {
+    var cur = TIERS[curTier];
+    var p = Math.max(0, Math.min(1, (total - cur.at) / (next.at - cur.at)));
+    document.getElementById("msName").textContent = "Next: " + next.name + " at " + fmt(next.at) + " total";
+    document.getElementById("msPct").textContent = Math.floor(p * 100) + "%";
+    document.getElementById("msFill").style.width = (p * 100) + "%";
+  } else {
+    document.getElementById("msName").textContent = "All milestones unlocked — Dragon Armor";
+    document.getElementById("msPct").textContent = "100%";
+    document.getElementById("msFill").style.width = "100%";
+  }
+  document.getElementById("muteBtn").textContent = muted ? "SOUND: OFF" : "SOUND: ON";
+}
+
+var cardEls = {};
+function buildShop() {
+  var shopEl = document.getElementById("shop");
+  ORDER.forEach(function (key) {
+    var u = UPG[key];
+    var card = document.createElement("div");
+    card.className = "up";
+    var nm = document.createElement("div"); nm.className = "nm";
+    var n1 = document.createElement("span"); n1.textContent = u.name;
+    var n2 = document.createElement("span"); n2.className = "lvl";
+    nm.appendChild(n1); nm.appendChild(n2);
+    var fx = document.createElement("div"); fx.className = "fx";
+    var btn = document.createElement("button");
+    btn.addEventListener("click", function () { ensureAudio(); buy(key); });
+    card.appendChild(nm); card.appendChild(fx); card.appendChild(btn);
+    shopEl.appendChild(card);
+    cardEls[key] = { lvl: n2, fx: fx, btn: btn };
+  });
+}
+function updateShop() {
+  ORDER.forEach(function (key) {
+    var u = UPG[key], l = lv[key], el = cardEls[key];
+    el.lvl.textContent = "Lv " + l + (l >= u.max ? " MAX" : "");
+    el.fx.textContent = u.fx(l);
+    if (l >= u.max) { el.btn.textContent = "MAX"; el.btn.disabled = true; }
+    else { var c = costOf(key); el.btn.textContent = "Buy · " + fmt(c); el.btn.disabled = gold < c; }
+  });
+}
+
+// ---------- 渲染 ----------
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function draw(t, dt) {
+  // 背景
+  var bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#191110"); bg.addColorStop(1, "#0d0a08");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  // 后墙砖缝
+  ctx.strokeStyle = "rgba(255,255,255,.028)"; ctx.lineWidth = 1;
+  for (var ry = 30; ry < 262; ry += 22) { ctx.beginPath(); ctx.moveTo(0, ry); ctx.lineTo(W, ry); ctx.stroke(); }
+  // 地面
+  ctx.fillStyle = "#15100d"; ctx.fillRect(0, 262, W, H - 262);
+  // 地面炉光（呼吸）
+  var breath = 0.6 + 0.25 * Math.sin(t * 1.6) + 0.15 * Math.sin(t * 4.3 + 1.7);
+  var fg = ctx.createRadialGradient(FURNACE_X, 262, 6, FURNACE_X, 262, 150 * breath);
+  fg.addColorStop(0, "rgba(255,130,40," + (0.22 * breath) + ")");
+  fg.addColorStop(1, "rgba(255,130,40,0)");
+  ctx.fillStyle = fg; ctx.fillRect(0, 226, W, H - 226);
+  drawFurnace(t, breath);
+  drawAnvil();
+  drawForgedItem(t);
+  drawHammer();
+  drawParticles(dt);
+  drawFloats(dt);
+  // 顶部暗角 + 标题
+  var vg = ctx.createLinearGradient(0, 0, 0, 52);
+  vg.addColorStop(0, "rgba(0,0,0,.5)"); vg.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, 52);
+  ctx.fillStyle = "rgba(255,215,106,.9)"; ctx.font = "800 15px sans-serif";
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText("IDLE FORGE", 12, 10);
+  ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.font = "11px sans-serif";
+  ctx.fillText("Forging: " + TIERS[curTier].name, 12, 29);
+  // 新手提示
+  var hintA = Math.max(0, 1 - clicks / 6);
+  if (hintA > 0) {
+    ctx.globalAlpha = hintA * (0.6 + 0.4 * Math.sin(t * 3));
+    ctx.fillStyle = "#ffd76a"; ctx.font = "800 13px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("TAP THE ANVIL TO FORGE", ANVIL_X, 92);
+    ctx.globalAlpha = 1;
+  }
+}
+
+var FURNACE_X = 97;
+function drawFurnace(t, breath) {
+  var fx = FURNACE_X, top = 118, bw = 136, bh = 150;
+  var g = ctx.createLinearGradient(fx - bw / 2, 0, fx + bw / 2, 0);
+  g.addColorStop(0, "#2a1d16"); g.addColorStop(0.5, "#3a291e"); g.addColorStop(1, "#241811");
+  ctx.fillStyle = g;
+  roundRect(ctx, fx - bw / 2, top, bw, bh, 8); ctx.fill();
+  // 砖缝
+  ctx.strokeStyle = "rgba(0,0,0,.28)"; ctx.lineWidth = 1;
+  for (var i = 1; i < 6; i++) { ctx.beginPath(); ctx.moveTo(fx - bw / 2 + 4, top + i * 24); ctx.lineTo(fx + bw / 2 - 4, top + i * 24); ctx.stroke(); }
+  // 烟囱口
+  ctx.fillStyle = "#1c130e";
+  roundRect(ctx, fx - 18, top - 26, 36, 28, 4); ctx.fill();
+  // 炉膛拱门
+  var mx = fx, mTop = 168, mW = 84, mBot = 262;
+  ctx.fillStyle = "#0c0705";
+  ctx.beginPath();
+  ctx.moveTo(mx - mW / 2, mBot);
+  ctx.lineTo(mx - mW / 2, mTop + 20);
+  ctx.quadraticCurveTo(mx, mTop - 26, mx + mW / 2, mTop + 20);
+  ctx.lineTo(mx + mW / 2, mBot);
+  ctx.closePath(); ctx.fill();
+  // 内部火光
+  var glow = ctx.createRadialGradient(mx, 232, 4, mx, 232, 62 * (0.85 + 0.3 * breath));
+  glow.addColorStop(0, "rgba(255,190,80," + Math.min(1, 0.85 * breath) + ")");
+  glow.addColorStop(0.5, "rgba(255,110,30," + 0.5 * breath + ")");
+  glow.addColorStop(1, "rgba(255,110,30,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.moveTo(mx - mW / 2, mBot);
+  ctx.lineTo(mx - mW / 2, mTop + 20);
+  ctx.quadraticCurveTo(mx, mTop - 26, mx + mW / 2, mTop + 20);
+  ctx.lineTo(mx + mW / 2, mBot);
+  ctx.closePath(); ctx.fill();
+  // 火焰
+  for (var f = 0; f < 5; f++) {
+    var bxx = mx - 30 + f * 15;
+    var hh = 26 + 14 * Math.sin(t * 6 + f * 1.9) + 8 * Math.sin(t * 11 + f * 3.1);
+    var wTop = 5 + 3 * Math.sin(t * 8 + f);
+    ctx.fillStyle = f % 2 ? "rgba(255,150,40,.9)" : "rgba(255,190,60,.9)";
+    ctx.beginPath();
+    ctx.moveTo(bxx - 7, 250);
+    ctx.quadraticCurveTo(bxx - wTop, 250 - hh * 0.5, bxx + Math.sin(t * 5 + f) * 4, 250 - hh);
+    ctx.quadraticCurveTo(bxx + wTop, 250 - hh * 0.5, bxx + 7, 250);
+    ctx.closePath(); ctx.fill();
+  }
+  // 炉口石沿
+  ctx.strokeStyle = "#4a3220"; ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(mx - mW / 2 - 2, mBot);
+  ctx.lineTo(mx - mW / 2 - 2, mTop + 20);
+  ctx.quadraticCurveTo(mx, mTop - 28, mx + mW / 2 + 2, mTop + 20);
+  ctx.lineTo(mx + mW / 2 + 2, mBot);
+  ctx.stroke();
+}
+
+function drawAnvil() {
+  var cx = ANVIL_X, ty = ANVIL_TOP;
+  ctx.fillStyle = "#241a14";
+  roundRect(ctx, cx - 46, 252, 92, 12, 3); ctx.fill();
+  roundRect(ctx, cx - 30, 240, 60, 14, 3); ctx.fill();
+  ctx.fillStyle = "#33383f";
+  ctx.beginPath();
+  ctx.moveTo(cx - 16, ty + 16); ctx.lineTo(cx + 16, ty + 16);
+  ctx.lineTo(cx + 26, 240); ctx.lineTo(cx - 26, 240);
+  ctx.closePath(); ctx.fill();
+  // 砧角
+  ctx.beginPath();
+  ctx.moveTo(cx - 40, ty + 3);
+  ctx.quadraticCurveTo(cx - 78, ty + 2, cx - 88, ty + 12);
+  ctx.quadraticCurveTo(cx - 70, ty + 15, cx - 40, ty + 14);
+  ctx.closePath(); ctx.fill();
+  // 砧面
+  var tg = ctx.createLinearGradient(0, ty, 0, ty + 16);
+  tg.addColorStop(0, "#5b626d"); tg.addColorStop(0.35, "#454b54"); tg.addColorStop(1, "#2e333a");
+  ctx.fillStyle = tg;
+  roundRect(ctx, cx - 54, ty, 108, 16, 4); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.14)";
+  ctx.fillRect(cx - 50, ty + 2, 100, 2);
+  ctx.fillStyle = "rgba(255,140,50,.1)";
+  ctx.fillRect(cx - 54, ty + 12, 108, 4);
+}
+
+function drawForgedItem(t) { // 当前锻造品站在砧面上
+  var x = ANVIL_X - 8, y = ANVIL_TOP - 1;
+  ctx.save();
+  if (curTier === 0) { // 铁剑
+    var bg1 = ctx.createLinearGradient(x - 6, 0, x + 6, 0);
+    bg1.addColorStop(0, "#7d858f"); bg1.addColorStop(0.5, "#aab2bc"); bg1.addColorStop(1, "#6a727c");
+    ctx.fillStyle = bg1;
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y - 6); ctx.lineTo(x - 2, y - 36); ctx.lineTo(x, y - 40);
+    ctx.lineTo(x + 2, y - 36); ctx.lineTo(x + 5, y - 6);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#5a4028"; ctx.fillRect(x - 11, y - 7, 22, 4);
+    ctx.fillStyle = "#3d2b1a"; ctx.fillRect(x - 3, y - 3, 6, 9);
+    ctx.fillStyle = "#8a97a5";
+    ctx.beginPath(); ctx.arc(x, y + 7, 3, 0, Math.PI * 2); ctx.fill();
+  } else if (curTier === 1) { // 银弓
+    ctx.strokeStyle = "#c9ced8"; ctx.lineWidth = 4; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x + 6, y - 2); ctx.quadraticCurveTo(x + 24, y - 21, x + 6, y - 40); ctx.stroke();
+    ctx.strokeStyle = "rgba(240,244,250,.8)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x + 6, y - 2); ctx.lineTo(x + 6, y - 40); ctx.stroke();
+  } else if (curTier === 2) { // 金冠
+    var gg = ctx.createLinearGradient(0, y - 30, 0, y);
+    gg.addColorStop(0, "#ffe08a"); gg.addColorStop(1, "#c9861f");
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y); ctx.lineTo(x - 14, y - 12); ctx.lineTo(x - 7, y - 20);
+    ctx.lineTo(x, y - 26); ctx.lineTo(x + 7, y - 20); ctx.lineTo(x + 14, y - 12); ctx.lineTo(x + 14, y);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#e05a5a";
+    ctx.beginPath(); ctx.arc(x, y - 25, 2.4, 0, Math.PI * 2); ctx.fill();
+  } else if (curTier === 3) { // 星钻
+    var dg = ctx.createLinearGradient(x - 12, y - 36, x + 12, y);
+    dg.addColorStop(0, "#d9f6ff"); dg.addColorStop(0.5, "#7fd4f6"); dg.addColorStop(1, "#3a92c8");
+    ctx.fillStyle = dg;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 38); ctx.lineTo(x + 12, y - 22); ctx.lineTo(x, y - 2); ctx.lineTo(x - 12, y - 22);
+    ctx.closePath(); ctx.fill();
+    var tw = 0.5 + 0.5 * Math.sin(t * 3.2);
+    ctx.strokeStyle = "rgba(255,255,255," + (0.35 + 0.6 * tw) + ")"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(x - 6, y - 26); ctx.lineTo(x + 6, y - 26);
+    ctx.moveTo(x, y - 32); ctx.lineTo(x, y - 20); ctx.stroke();
+  } else { // 龙铠
+    var ag = ctx.createLinearGradient(0, y - 32, 0, y);
+    ag.addColorStop(0, "#b03a3a"); ag.addColorStop(1, "#5f1d1d");
+    ctx.fillStyle = ag;
+    ctx.beginPath();
+    ctx.moveTo(x - 15, y - 30); ctx.lineTo(x + 15, y - 30); ctx.lineTo(x + 15, y - 12);
+    ctx.quadraticCurveTo(x + 14, y - 2, x, y + 2);
+    ctx.quadraticCurveTo(x - 14, y - 2, x - 15, y - 12);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#d8a63a"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = "rgba(255,220,120,.45)"; ctx.lineWidth = 1;
+    for (var s2 = 0; s2 < 3; s2++) {
+      ctx.beginPath(); ctx.arc(x - 7 + s2 * 7, y - 16, 3.4, 0, Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x - 3.5 + s2 * 7, y - 9, 3.4, 0, Math.PI); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+var HAMMER_PX = 360, HAMMER_PY = 148, HAMMER_REST = 0.9, HAMMER_HIT = -0.45;
+function drawHammer() {
+  var p = swingT > 0 ? 1 - swingT / SWING_T : 0;
+  var a = HAMMER_REST + (HAMMER_HIT - HAMMER_REST) * Math.sin(Math.min(1, p) * Math.PI);
+  var hx = HAMMER_PX + Math.sin(a) * 78, hy = HAMMER_PY + Math.cos(a) * 78;
+  ctx.strokeStyle = "#7c4e26"; ctx.lineWidth = 7; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(HAMMER_PX, HAMMER_PY); ctx.lineTo(hx, hy); ctx.stroke();
+  // 锤头（用垂直向量拼四边形，免旋转态混乱）
+  var ca = Math.cos(a), sa = Math.sin(a);
+  var c1x = hx + ca * 20 + sa * 12, c1y = hy - sa * 20 + ca * 12;
+  var c2x = hx - ca * 20 + sa * 12, c2y = hy + sa * 20 + ca * 12;
+  var c3x = hx - ca * 20 - sa * 12, c3y = hy + sa * 20 - ca * 12;
+  var c4x = hx + ca * 20 - sa * 12, c4y = hy - sa * 20 - ca * 12;
+  var hg = ctx.createLinearGradient(hx - 20, hy - 20, hx + 20, hy + 20);
+  hg.addColorStop(0, "#5c636e"); hg.addColorStop(1, "#33383f");
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.moveTo(c1x, c1y); ctx.lineTo(c2x, c2y); ctx.lineTo(c3x, c3y); ctx.lineTo(c4x, c4y); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.15)";
+  ctx.beginPath(); ctx.moveTo(c4x, c4y); ctx.lineTo(c3x, c3y);
+  ctx.lineTo(c3x + ca * 4, c3y - sa * 4); ctx.lineTo(c4x + ca * 4, c4y - sa * 4);
+  ctx.closePath(); ctx.fill();
+}
+
+function drawParticles(dt) {
+  for (var i = particles.length - 1; i >= 0; i--) {
+    var p = particles[i];
+    p.age += dt;
+    if (p.age >= p.life) { particles.splice(i, 1); continue; }
+    p.vy += (p.g || 420) * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    ctx.globalAlpha = Math.max(0, 1 - p.age / p.life);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawFloats(dt) {
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (var i = floats.length - 1; i >= 0; i--) {
+    var f = floats[i];
+    f.age += dt;
+    if (f.age >= f.life) { floats.splice(i, 1); continue; }
+    f.y -= 34 * dt;
+    ctx.globalAlpha = Math.min(1, (1 - f.age / f.life) * 2);
+    ctx.font = f.crit ? "800 17px sans-serif" : "800 13px sans-serif";
+    ctx.fillStyle = f.crit ? "#ff9a3a" : "#ffd76a";
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- 主循环 ----------
+var last = 0, uiAcc = 0;
+function frame(tms) {
+  var dt = Math.min((tms - last) / 1000, 0.05);
+  last = tms;
+  if (!(dt > 0)) dt = 0;
+  simTick(dt);
+  if (swingT > 0) swingT = Math.max(0, swingT - dt);
+  draw(last / 1000, dt);
+  uiAcc += dt;
+  if (uiAcc >= 0.12) { uiAcc = 0; updateHud(); updateShop(); }
+  requestAnimationFrame(frame);
+}
+
+// ---------- 输入（鼠标 + 触摸 + 键盘） ----------
+function bindForge() { doForge(); }
+canvas.addEventListener("mousedown", bindForge);
+canvas.addEventListener("touchstart", function (e) { e.preventDefault(); bindForge(); }, { passive: false });
+canvas.addEventListener("touchmove", function (e) { e.preventDefault(); }, { passive: false });
+canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+document.addEventListener("keydown", function (e) {
+  if (e.key === " " || e.key === "Enter") {
+    if (e.target && e.target.tagName === "BUTTON") return;
+    e.preventDefault(); bindForge();
+  }
+});
+document.getElementById("muteBtn").addEventListener("click", function () {
+  muted = !muted;
+  if (!muted) ensureAudio();
+  updateHud();
+  saveGame();
+});
+document.getElementById("collectBtn").addEventListener("click", function () {
+  ensureAudio(); beep(700, 0.12, "triangle", 0.1);
+  document.getElementById("overlay").style.display = "none";
+});
+
+// ---------- 页面可见性 / 退出 ----------
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden) { saveGame(); gpStop(); }
+  else if (started) gpStart();
+});
+window.addEventListener("beforeunload", saveGame);
+window.addEventListener("pagehide", saveGame);
+
+// ---------- 启动 ----------
+buildShop();
+var awaySec = loadGame();
+curTier = tierOf(total);
+if (awaySec !== null && lv.boiler && rate() > 0 && awaySec >= OFFLINE_MIN) {
+  var og = offlineGain(awaySec);
+  if (og > 0) { gold += og; total += og; checkMilestone(); showOfflinePanel(awaySec, og); }
+}
+updateHud(); updateShop();
+setInterval(saveGame, 5000);
+requestAnimationFrame(frame);
+
+// 调试/测试钩子（不影响游戏逻辑）
+window.__if = {
+  click: doForge, buy: buy, tick: simTick, cost: costOf,
+  offline: offlineGain, save: saveGame, fmt: fmt,
+  addGold: function (n) { gold += n; total += n; checkMilestone(); },
+  setLv: function (k, v) { if (k in lv) lv[k] = v; },
+  get gold() { return gold; }, get total() { return total; },
+  get rate() { return rate(); }, get clickValue() { return clickValue(); },
+  get crit() { return critChance(); }, get lv() { return lv; }, get tier() { return curTier; }
+};
+</script>
+</body>
+</html>
